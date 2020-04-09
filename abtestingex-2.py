@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[2]:
 
 
 import scipy.stats as scs
@@ -13,10 +13,10 @@ import seaborn as sns
 from statsmodels.stats.weightstats import ztest
 
 
-# In[114]:
+# In[3]:
 
 
-
+#The original source code from the formulas and graphs comes from Nguyen Ngo in his article "The Match Behind A/B Testing with Example Python Code"
 #returns a dataframe with fake CTR data
 #N_A & N_B size of the two groups
 #p_A & p_B converstion rate of control group and experiment group respectively
@@ -201,7 +201,8 @@ def abplot(N_A, N_B, bcr, d_hat, sig_level, show_power=False,
     # show p_value based on the binomial distributions for the two groups
     if show_p_value:
         null = ab_dist(stderr, 'control')
-        p_value = p_val(N_A, N_B, bcr, bcr+d_hat)
+        #p_value = p_val(N_A, N_B, bcr, bcr+d_hat)
+        zscore, p_value = ztest(A_group_arr, B_group_arr, value=0, alternative='two-sided', usevar='pooled', ddof=1.0)
         print("P-value: "+str(p_value))
         ax.text(3 * stderr, null.pdf(0),
                 'p-value = {0:.3f}'.format(p_value),
@@ -440,7 +441,7 @@ def funnel_CI_plot(A, B, sig_level=0.05):
     plt.yticks(np.arange(len(A)), labels)
 
 
-# In[115]:
+# In[4]:
 
 
 def pooled_prob(N_A, N_B, X_A, X_B):
@@ -544,7 +545,7 @@ def p_val(N_A, N_B, p_A, p_B):
     return scs.binom(N_A, p_A).pmf(p_B * N_B)
 
 
-# In[116]:
+# In[5]:
 
 
 
@@ -568,10 +569,6 @@ N_B = 1000
 confidence_level = 0.95
 sig_level = 1 - confidence_level
 
-
-# In[117]:
-
-
 #create random data, being 1 --> user converted and 0 user did not convert
 ab_data = generate_data(N_A, N_B, p_A, p_B)
 
@@ -584,18 +581,11 @@ ab_data_summary["CR"]= ab_data_summary["converted"]/ab_data_summary["total"]
 
 display(ab_data_summary)
 
-
-# In[118]:
-
-
 #remember this "scs.binom.pmf(k=2, n=10, p=0.5)" is read as:
 #probability of 2 heads after 10 throws with a probability of head = 0.5
 
 #remember this "binom.cdf(k=5, n=10, p=0.5)" is read as:
 #probability of 5 heads or less after 10 throws with a probability of head = 0.5
-
-
-# In[119]:
 
 
 #extract data from dataframe
@@ -612,13 +602,7 @@ A_group_arr = np.asarray(A_group["converted"].to_list())
 B_group_arr = np.asarray(B_group["converted"].to_list())
 
 
-# In[121]:
-
-
-ztest(A_group_arr, B_group_arr, value=0, alternative='two-sided', usevar='pooled', ddof=1.0)
-
-
-# In[122]:
+# In[6]:
 
 
 #Plot the test and control group's probability mass functions
@@ -649,7 +633,7 @@ plt.ylabel('probability')
 # 
 # In this case, since we do not know the standard deviation of the population, we use the standard deviation of the sample divided by the square root of n as an estimation
 
-# In[123]:
+# In[7]:
 
 
 # Calculation of the standard error of the mean
@@ -660,7 +644,7 @@ SE_A = scs.bernoulli.std(p_A) / np.sqrt(A_total)
 SE_B = scs.bernoulli.std(p_B) / np.sqrt(B_total)
 
 
-# In[181]:
+# In[8]:
 
 
 
@@ -692,6 +676,10 @@ plt.ylabel('PDF')
 # The standard deviation will be pooled, using the two groups
 # ![image.png](attachment:image.png)
 
+# 
+# 
+# 
+# 
 # In other words:
 # ![image.png](attachment:image.png)
 
@@ -706,7 +694,7 @@ plt.ylabel('PDF')
 # We will assume we can use a normal distribution for that
 # 
 
-# In[125]:
+# In[9]:
 
 
 #Calculate Z-score and P-value
@@ -717,7 +705,7 @@ else:
     print("We cannot reject the H0")
 
 
-# In[126]:
+# In[10]:
 
 
 abplot(N_A, N_B, p_A, p_B-p_A, sig_level, show_power=True,
@@ -725,10 +713,20 @@ abplot(N_A, N_B, p_A, p_B-p_A, sig_level, show_power=True,
            show_legend=True)
 
 
-# In[103]:
+# ## How to calculate sample size
+# 
+# In order to find the sample size for each group so that we find that the difference in means/proportions of control/experiment is significantly equal or greater than the minimum detectable effect we will use this formula:
+
+# ![image.png](attachment:image.png)
+
+# In[18]:
 
 
-stats.norm.interval(0.95, loc=p_A, scale=sigma/sqrt(N))
+mde=0.02
+n = min_sample_size(p_A, mde, power=0.8, sig_level=0.05)
+
+print("If we want to test that there is a significance difference of at least "+ str(mde)+ 
+      " between control an experiment means/proportions"+ " we need a sample size of "+ str(n))
 
 
 # In[ ]:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[25]:
 
 
 import scipy.stats as scs
@@ -13,10 +13,10 @@ import seaborn as sns
 from statsmodels.stats.weightstats import ztest
 
 
-# In[114]:
+# In[26]:
 
 
-
+#The original source code from the formulas and graphs comes from Nguyen Ngo in his article "The Match Behind A/B Testing with Example Python Code"
 #returns a dataframe with fake CTR data
 #N_A & N_B size of the two groups
 #p_A & p_B converstion rate of control group and experiment group respectively
@@ -152,15 +152,15 @@ def generate_data(N_A, N_B, p_A, p_B, days=None, control_label='A',
     return df
 
 
-def abplot(N_A, N_B, bcr, d_hat, sig_level, show_power=False,
+def abplot(N_A, N_B, p_A, d_hat, sig_level, show_power=False,
            show_alpha=False, show_beta=False, show_p_value=False,
            show_legend=True):
     """Example plot of AB test
     Example:
-        abplot(n=4000, bcr=0.11, d_hat=0.03)
+        abplot(n=4000, p_A=0.11, d_hat=0.03)
     Parameters:
         n (int): total sample size for both control and test groups (N_A + N_B)
-        bcr (float): base conversion rate; conversion rate of control
+        p_A (float): base conversion rate; conversion rate of control
         d_hat: difference in conversion rate between the control and test
             groups, sometimes referred to as **minimal detectable effect** when
             calculating minimum sample size or **lift** when discussing
@@ -173,8 +173,8 @@ def abplot(N_A, N_B, bcr, d_hat, sig_level, show_power=False,
     fig, ax = plt.subplots(figsize=(12, 6))
 
     # define parameters to find pooled standard error
-    X_A = bcr * N_A
-    X_B = (bcr + d_hat) * N_B
+    X_A = p_A * N_A
+    X_B = (p_A + d_hat) * N_B
     stderr = pooled_SE(N_A, N_B, X_A, X_B)
     print("Standard error: "+str(stderr))
 
@@ -201,7 +201,8 @@ def abplot(N_A, N_B, bcr, d_hat, sig_level, show_power=False,
     # show p_value based on the binomial distributions for the two groups
     if show_p_value:
         null = ab_dist(stderr, 'control')
-        p_value = p_val(N_A, N_B, bcr, bcr+d_hat)
+        #p_value = p_val(N_A, N_B, p_A, p_A+d_hat)
+        zscore, p_value = ztest(A_group_arr, B_group_arr, value=0, alternative='two-sided', usevar='pooled', ddof=1.0)
         print("P-value: "+str(p_value))
         ax.text(3 * stderr, null.pdf(0),
                 'p-value = {0:.3f}'.format(p_value),
@@ -440,7 +441,7 @@ def funnel_CI_plot(A, B, sig_level=0.05):
     plt.yticks(np.arange(len(A)), labels)
 
 
-# In[115]:
+# In[27]:
 
 
 def pooled_prob(N_A, N_B, X_A, X_B):
@@ -503,10 +504,10 @@ def ab_dist(stderr, d_hat=0, group_type='control'):
     return dist
 
 
-def min_sample_size(bcr, mde, power=0.8, sig_level=0.05):
+def min_sample_size(p_A, mde, power=0.8, sig_level=0.05):
     """Returns the minimum sample size to set up a split test
     Arguments:
-        bcr (float): probability of success for control, sometimes
+        p_A (float): probability of success for control, sometimes
         referred to as baseline conversion rate
         mde (float): minimum change in measurement between control
         group and test group if alternative hypothesis is true, sometimes
@@ -531,7 +532,7 @@ def min_sample_size(bcr, mde, power=0.8, sig_level=0.05):
     Z_alpha = standard_norm.ppf(1-sig_level/2)
 
     # average of probabilities from both groups
-    pooled_prob = (bcr + bcr+mde) / 2
+    pooled_prob = (p_A + p_A+mde) / 2
 
     min_N = (2 * pooled_prob * (1 - pooled_prob) * (Z_beta + Z_alpha)**2
              / mde**2)
@@ -544,18 +545,15 @@ def p_val(N_A, N_B, p_A, p_B):
     return scs.binom(N_A, p_A).pmf(p_B * N_B)
 
 
-# In[116]:
+# In[28]:
 
 
-
-
-
-#What is your practical significance limit ? (desired lift), the change in your metric
+#What is your practical significance limit ( or minimum detectable effect)? (desired lift), the change in your metric
 #whose signficant result would make you apply/launch the experiment 
 d_hat = 0.02
 
 #converstion rate of group A
-p_A = 0.08
+p_A = 0.08  #this will be our baseline mean/proportion
 p_B = 0.12
 #conversion rate of group B
 
@@ -568,12 +566,12 @@ N_B = 1000
 confidence_level = 0.95
 sig_level = 1 - confidence_level
 
-
-# In[117]:
-
-
 #create random data, being 1 --> user converted and 0 user did not convert
 ab_data = generate_data(N_A, N_B, p_A, p_B)
+
+
+# In[29]:
+
 
 #Summarize data, which is the conversion rate for both groups?
 ab_data_summary = ab_data.groupby("group").sum()
@@ -584,10 +582,6 @@ ab_data_summary["CR"]= ab_data_summary["converted"]/ab_data_summary["total"]
 
 display(ab_data_summary)
 
-
-# In[118]:
-
-
 #remember this "scs.binom.pmf(k=2, n=10, p=0.5)" is read as:
 #probability of 2 heads after 10 throws with a probability of head = 0.5
 
@@ -595,30 +589,21 @@ display(ab_data_summary)
 #probability of 5 heads or less after 10 throws with a probability of head = 0.5
 
 
-# In[119]:
-
-
 #extract data from dataframe
 A_group = ab_data[ab_data['group'] == 'A']
 B_group = ab_data[ab_data['group'] == 'B']
 A_converted, B_converted = A_group['converted'].sum(), B_group['converted'].sum()
 
-A_total, B_total = len(A_group), len(B_group)
+N_A, N_B = len(A_group), len(B_group)
 
 
-p_A, p_B = A_converted / A_total, B_converted / B_total
+p_A, p_B = A_converted / N_A, B_converted / N_B
 
 A_group_arr = np.asarray(A_group["converted"].to_list())
 B_group_arr = np.asarray(B_group["converted"].to_list())
 
 
-# In[121]:
-
-
-ztest(A_group_arr, B_group_arr, value=0, alternative='two-sided', usevar='pooled', ddof=1.0)
-
-
-# In[122]:
+# In[30]:
 
 
 #Plot the test and control group's probability mass functions
@@ -626,13 +611,13 @@ ztest(A_group_arr, B_group_arr, value=0, alternative='two-sided', usevar='pooled
 fig, ax = plt.subplots(figsize=(12,6))
 #np.linspace(1,4,4) returns a np array from 1 until 4 divided into 4. --> 1,2,3,4
 xA = np.linspace(A_converted-49, A_converted+50, 100)
-#Return a numpy array of the probabilities given a sample size of A_total
+#Return a numpy array of the probabilities given a sample size of N_A
 #and a probability of p_A, for a range of values xA
-#example: what is the probability of "1" given a probaility p_A and the total of A_total ?
-yA = scs.binom(A_total, p_A).pmf(xA)
+#example: what is the probability of "1" given a probaility p_A and the total of N_A ?
+yA = scs.binom(N_A, p_A).pmf(xA)
 ax.scatter(xA, yA, s=10)
 xB = np.linspace(B_converted-49, B_converted+50, 100)
-yB = scs.binom(B_total, p_B).pmf(xB)
+yB = scs.binom(N_B, p_B).pmf(xB)
 ax.scatter(xB, yB, s=10)
 plt.xlabel('converted')
 plt.ylabel('probability')
@@ -649,18 +634,18 @@ plt.ylabel('probability')
 # 
 # In this case, since we do not know the standard deviation of the population, we use the standard deviation of the sample divided by the square root of n as an estimation
 
-# In[123]:
+# In[31]:
 
 
 # Calculation of the standard error of the mean
 #the fomula comprises the standard deviation of the sample divided by the sqrt(n)
 #remember, since the population standard deviation is rarely known, we use the standard deviation
 #of the sample to estimate the standard error of the mean
-SE_A = scs.bernoulli.std(p_A) / np.sqrt(A_total)
-SE_B = scs.bernoulli.std(p_B) / np.sqrt(B_total)
+SE_A = scs.bernoulli.std(p_A) / np.sqrt(N_A)
+SE_B = scs.bernoulli.std(p_B) / np.sqrt(N_B)
 
 
-# In[181]:
+# In[32]:
 
 
 
@@ -692,6 +677,10 @@ plt.ylabel('PDF')
 # The standard deviation will be pooled, using the two groups
 # ![image.png](attachment:image.png)
 
+# 
+# 
+# 
+# 
 # In other words:
 # ![image.png](attachment:image.png)
 
@@ -706,7 +695,7 @@ plt.ylabel('PDF')
 # We will assume we can use a normal distribution for that
 # 
 
-# In[125]:
+# In[33]:
 
 
 #Calculate Z-score and P-value
@@ -717,7 +706,7 @@ else:
     print("We cannot reject the H0")
 
 
-# In[126]:
+# In[34]:
 
 
 abplot(N_A, N_B, p_A, p_B-p_A, sig_level, show_power=True,
@@ -725,14 +714,19 @@ abplot(N_A, N_B, p_A, p_B-p_A, sig_level, show_power=True,
            show_legend=True)
 
 
-# In[103]:
+# ## How to calculate sample size
+# 
+# In order to find the sample size for each group so that we find that the difference in means/proportions of control/experiment is significantly equal or greater than the minimum detectable effect we will use this formula:
+
+# ![image.png](attachment:image.png)
+
+# In[35]:
 
 
-stats.norm.interval(0.95, loc=p_A, scale=sigma/sqrt(N))
+#The size calculation will depend on the baseline mean/proportion, in our case p_A
+# in the minimum detectable effect (d_hat), the power and alpha
+n = min_sample_size(p_A, d_hat, power=0.8, sig_level=0.05)
 
-
-# In[ ]:
-
-
-
+print("If we want to test that there is a significance difference of at least "+ str(mde)+ 
+      " between control an experiment means/proportions"+ " we need a sample size of "+ str(n))
 

@@ -1,7 +1,6 @@
 # abTestingEx
 
-A/B testing example for reference with formulas and implementation
-
+A/B testing example for reference with formulas and implementation. Chech the [notebook](https://gitlab.com/rangelrey/abtestingex/-/blob/master/abtestingex.ipynb) here
 
 
 
